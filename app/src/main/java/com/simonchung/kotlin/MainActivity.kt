@@ -1,45 +1,52 @@
 package com.simonchung.kotlin
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.database.Cursor
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
+import android.util.Size
+import android.view.View
+import android.view.ViewGroup
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.google.android.material.snackbar.Snackbar
+import com.simonchung.kotlin.databinding.ActivityMainBinding
 import com.simonchung.kotlin.model.FileModel
 import com.simonchung.kotlin.sqlite.Photo
+import com.simonchung.kotlin.ui.login.LoginActivity
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.file.Paths
 
 //debug 時若一直停在 Force Close dialog, 請在 terminal 輸入 adb kill-server -> adb start-server
 
 class MainActivity : AppCompatActivity() {
 
-    private val et: EditText by lazy { findViewById(R.id.et_01) }
-    private val txt: TextView by lazy { findViewById(R.id.textView) }
-    private val btn: Button by lazy { findViewById(R.id.button) }
     private val broadcast = MyReceiver()
-
+    private lateinit var binding: ActivityMainBinding
     private lateinit var v1: String
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+
+        //view binding
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         //廣播
         val filter = IntentFilter()
@@ -50,19 +57,31 @@ class MainActivity : AppCompatActivity() {
         function("this is function 2")
 
         //Intent
-        btn.setOnClickListener {
-            val value = et.text.toString()
+        binding.btnIntent.setOnClickListener {
+            val value = binding.et01.text.toString()
             v1 = "$value hello word"
             val intent = Intent(this, MainActivity2::class.java)
             intent.putExtra("info", v1)
             startActivity(intent)
+        }
 
+        binding.btnCamera.setOnClickListener {
             startActivity(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE))
+        }
+
+        binding.btnLogin.setOnClickListener {
+            val intent = Intent(this, LoginActivity::class.java)
+            startActivity(intent)
+        }
+
+        binding.btnGrid.setOnClickListener {
+            val intent = Intent(this, MyGridActivity::class.java)
+            startActivity(intent)
         }
 
         //訊息顯示
         Toast.makeText(this, "this is toast", Toast.LENGTH_LONG).show()
-        Snackbar.make(findViewById(R.id.textView), "顯示 Snackbar", Snackbar.LENGTH_SHORT).show()
+        Snackbar.make(binding.root, "顯示 Snackbar", Snackbar.LENGTH_SHORT).show()
 
         //執行緒, 不可在Thread內使用Toast會crash, Handler已經deprecate, 可使用廣播與main thread communication
         Thread {
@@ -98,7 +117,6 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
-
 
         //資料庫 sqlite
         try {
@@ -141,9 +159,30 @@ class MainActivity : AppCompatActivity() {
             }
         }.start()
 
+
         val list: ArrayList<FileModel> = getImageList()
-        val count = list.size
-        Log.e("bbb", "$count---")
+        for (i in 0 until list.size) {
+            val f: String = list[i].path
+            Log.e("aaa", "$f --")
+        }
+
+        try {
+            val uri =
+                Uri.parse(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString() + "/" + list[1].id)
+            val thumbnail = contentResolver.loadThumbnail(uri, Size(200, 200), null)
+            binding.imageView.setImageBitmap(thumbnail)
+        } catch (e: java.lang.Exception) {
+            e.printStackTrace()
+        }
+
+
+        if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            binding.gv.numColumns = 4
+        } else binding.gv.numColumns = 6
+
+
+        val adapter: BaseAdapter = getAdapter(list)
+        binding.gv.adapter = adapter
 
     }
 
@@ -164,7 +203,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun function(value: String) {
-        txt.text = value
+        binding.textView.text = value
     }
 
     private fun getImageList(): ArrayList<FileModel> {
@@ -197,15 +236,70 @@ class MainActivity : AppCompatActivity() {
         if (cursor != null) {
             while (cursor.moveToNext()) {
                 val model = FileModel()
-                model.setId(cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)))
-                model.setPath(cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)))
+                model.id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                model.path =
+                    cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA))
                 list.add(model)
             }
             cursor.close()
         }
         val count = list.size
-        Log.e("aaa", "$count---")
         return list
+    }
+
+
+    private fun getAdapter(list: ArrayList<FileModel>): BaseAdapter {
+        return object : BaseAdapter() {
+
+            override fun getCount(): Int {
+                return list.size
+            }
+
+            override fun getItem(position: Int): FileModel {
+                return list[position]
+            }
+
+            override fun getItemId(i: Int): Long {
+                return i.toLong()
+            }
+
+
+            @SuppressLint("ViewHolder")
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                if (convertView == null) Log.e("aaa", "aaaa")
+                val view: View = layoutInflater.inflate(R.layout.image_picker_images, parent, false)
+
+                try {
+                    val model: FileModel = getItem(position)
+                    val imageView: ImageView by lazy { view.findViewById(R.id.img_picker_image) }
+                    val textView: TextView by lazy { view.findViewById(R.id.img_picker_filename) }
+                    val checkBox: CheckBox by lazy { view.findViewById(R.id.img_picker_checkbox) }
+                    try {
+                        val uri =
+                            Uri.parse(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString() + "/" + model.id)
+                        val thumbnail = contentResolver.loadThumbnail(uri, Size(200, 200), null)
+                        imageView.setImageBitmap(thumbnail)
+                    } catch (e: IOException) {
+                        e.printStackTrace()
+                    }
+
+                    val file: File = Paths.get(model.path).toFile()
+                    textView.text = file.name
+                    checkBox.isChecked = model.selected
+
+                    checkBox.setOnCheckedChangeListener { _: CompoundButton?, isChecked: Boolean ->
+                        model.selected = isChecked
+                    }
+
+//                    convertView.setOnClickListener {
+//                        //todo
+//                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                return view
+            }
+        }
     }
 
 
