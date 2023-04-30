@@ -20,6 +20,7 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener
 import com.google.android.material.snackbar.Snackbar
 import com.simonchung.kotlin.databinding.ActivityMainBinding
 import com.simonchung.kotlin.model.FileModel
@@ -40,6 +41,9 @@ class MainActivity : AppCompatActivity() {
     private val broadcast = MyReceiver()
     private lateinit var binding: ActivityMainBinding
     private lateinit var v1: String
+
+    private lateinit var list: ArrayList<FileModel>
+    private lateinit var adapter: BaseAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
 
-        //add dependence into gradle
+        //PreferenceManager 使用前必須先 add dependence
         val preference = PreferenceManager.getDefaultSharedPreferences(this)
         preference.edit().putString("key", "simonchung").apply()
 
@@ -160,12 +164,13 @@ class MainActivity : AppCompatActivity() {
         }.start()
 
 
-        val list: ArrayList<FileModel> = getImageList()
+        list = getImageList()
         for (i in 0 until list.size) {
             val f: String = list[i].path
             Log.e("aaa", "$f --")
         }
 
+        //thumbnail
         try {
             val uri =
                 Uri.parse(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString() + "/" + list[1].id)
@@ -175,15 +180,26 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
 
-
         if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-            binding.gv.numColumns = 4
-        } else binding.gv.numColumns = 6
+            binding.gridview.numColumns = 4
+        } else binding.gridview.numColumns = 6
+
+        adapter = getAdapter()
+        binding.gridview.adapter = adapter
+
+        binding.swipe.setOnRefreshListener {
+            list = getImageList()
+            adapter.notifyDataSetChanged()
+            binding.swipe.isRefreshing = false
+        }
 
 
-        val adapter: BaseAdapter = getAdapter(list)
-        binding.gv.adapter = adapter
+    }
 
+    override fun onResume() {
+        super.onResume()
+        list = getImageList()
+        adapter.notifyDataSetChanged()
     }
 
     override fun onDestroy() {
@@ -248,7 +264,7 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun getAdapter(list: ArrayList<FileModel>): BaseAdapter {
+    private fun getAdapter(): BaseAdapter {
         return object : BaseAdapter() {
 
             override fun getCount(): Int {
