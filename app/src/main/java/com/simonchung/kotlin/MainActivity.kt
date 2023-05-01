@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.database.Cursor
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -20,19 +21,19 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener
 import com.google.android.material.snackbar.Snackbar
 import com.simonchung.kotlin.databinding.ActivityMainBinding
 import com.simonchung.kotlin.model.FileModel
 import com.simonchung.kotlin.sqlite.Photo
 import com.simonchung.kotlin.ui.login.LoginActivity
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
+import okhttp3.*
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.file.Paths
+import java.util.*
+import java.util.concurrent.TimeUnit
+import java.util.stream.Collectors
 
 //debug 時若一直停在 Force Close dialog, 請在 terminal 輸入 adb kill-server -> adb start-server
 
@@ -79,9 +80,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnGrid.setOnClickListener {
-            val intent = Intent(this, MyGridActivity::class.java)
-            startActivity(intent)
+//            val intent = Intent(this, MyGridActivity::class.java)
+//            startActivity(intent)
+
+            val uploadList = list.stream().filter { o -> o.selected }.collect(
+                Collectors.toList()
+            ) as ArrayList<FileModel?>
+
+            Log.e("sss", "${uploadList.size}")
+            Thread {
+                run {
+                    for (i in 0 until uploadList.size) {
+                        Log.e("sss", "----")
+                        val f = uploadList[i] as FileModel
+                        upload(f)
+                    }
+                }
+            }.start()
+
         }
+
 
         //訊息顯示
         Toast.makeText(this, "this is toast", Toast.LENGTH_LONG).show()
@@ -163,22 +181,15 @@ class MainActivity : AppCompatActivity() {
             }
         }.start()
 
-
         list = getImageList()
         for (i in 0 until list.size) {
             val f: String = list[i].path
             Log.e("aaa", "$f --")
         }
 
-        //thumbnail
-        try {
-            val uri =
-                Uri.parse(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString() + "/" + list[1].id)
-            val thumbnail = contentResolver.loadThumbnail(uri, Size(200, 200), null)
-            binding.imageView.setImageBitmap(thumbnail)
-        } catch (e: java.lang.Exception) {
-            e.printStackTrace()
-        }
+
+        val thumbnail = thumbnail(list[0].id)
+        binding.imageView.setImageBitmap(thumbnail)
 
         if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
             binding.gridview.numColumns = 4
@@ -263,7 +274,6 @@ class MainActivity : AppCompatActivity() {
         return list
     }
 
-
     private fun getAdapter(): BaseAdapter {
         return object : BaseAdapter() {
 
@@ -315,6 +325,47 @@ class MainActivity : AppCompatActivity() {
                 }
                 return view
             }
+        }
+    }
+
+    private fun thumbnail(id: Long): Bitmap {
+        val uri =
+            Uri.parse(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString() + "/" + id)
+        return contentResolver.loadThumbnail(uri, Size(200, 200), null)
+    }
+
+    //請在 Thread 中執行
+    private fun upload(model: FileModel) {
+        val file = Paths.get(model.path).toFile()
+        val requestBody: RequestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("dept", "temp")
+            .addFormDataPart(
+                "image", file.name,
+                RequestBody.create(MediaType.parse("image/jpeg"), file)
+            )
+            .build()
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.MINUTES)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .build()
+
+        val url = "http://192.168.0.238/okhttp/api/values/FileUpload"
+        val request = Request.Builder()
+            .header("Content-Type", "multipart/form-data")
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                Snackbar.make(binding.root, "code: ${response.code()}", Snackbar.LENGTH_SHORT)
+                    .show()
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
         }
     }
 
