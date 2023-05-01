@@ -2,6 +2,7 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/upload"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context="com.simonchung.kotlin.MainActivity">
@@ -64,22 +65,14 @@
         app:layout_constraintTop_toTopOf="@+id/btn_login" />
 
 
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:layout_constraintStart_toStartOf="@+id/btn_intent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_intent"
-        tools:srcCompat="@tools:sample/avatars" />
-
     <Button
         android:id="@+id/btnCamera"
         android:layout_width="100dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="8dp"
         android:text="Camera"
-        app:layout_constraintStart_toEndOf="@+id/btn_grid"
-        app:layout_constraintTop_toTopOf="@+id/btn_grid" />
+        app:layout_constraintStart_toEndOf="@+id/btnUpload"
+        app:layout_constraintTop_toTopOf="@+id/btnUpload" />
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe"
@@ -92,7 +85,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imageView">
+        app:layout_constraintTop_toBottomOf="@+id/btnUpload">
 
         <GridView
             android:id="@+id/gridview"
@@ -100,9 +93,14 @@
             android:layout_height="match_parent" />
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-
-
-
+    <Button
+        android:id="@+id/btnUpload"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Upload"
+        app:layout_constraintStart_toStartOf="@+id/btn_intent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_intent" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

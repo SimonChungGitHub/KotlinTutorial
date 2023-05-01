@@ -2,10 +2,9 @@ package com.simonchung.kotlin
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentValues
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.app.AlertDialog
+import android.content.*
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.database.Cursor
@@ -22,6 +21,7 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.google.android.material.snackbar.Snackbar
+import com.simonchung.kotlin.broadcast.MyReceiver
 import com.simonchung.kotlin.databinding.ActivityMainBinding
 import com.simonchung.kotlin.model.FileModel
 import com.simonchung.kotlin.sqlite.Photo
@@ -39,12 +39,24 @@ import java.util.stream.Collectors
 
 class MainActivity : AppCompatActivity() {
 
-    private val broadcast = MyReceiver()
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var v1: String
+    private val broadcast = MyReceiver()
+    private lateinit var dialog: AlertDialog
 
     private lateinit var list: ArrayList<FileModel>
     private lateinit var adapter: BaseAdapter
+
+    private val uploadReceive: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (dialog.isShowing) dialog.dismiss()
+            list = getImageList()
+            adapter.notifyDataSetChanged()
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,10 +65,25 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        //建立 dialog
+        val linearLayout = LinearLayout(this)
+        linearLayout.orientation = LinearLayout.VERTICAL
+        linearLayout.setPaddingRelative(20, 50, 20, 0)
+        val builder = AlertDialog.Builder(this)
+        builder.setView(linearLayout).setCancelable(false)
+        dialog = builder.create()
+
         //廣播
         val filter = IntentFilter()
         filter.addAction(packageName)
         registerReceiver(broadcast, filter)
+        registerReceiver(uploadReceive, filter)
+
+        list = getImageList()
+        for (i in 0 until list.size) {
+            val f: String = list[i].path
+            Log.e("aaa", "$f --")
+        }
 
         function("this is function")
         function("this is function 2")
@@ -80,24 +107,34 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnGrid.setOnClickListener {
-//            val intent = Intent(this, MyGridActivity::class.java)
-//            startActivity(intent)
+            val intent = Intent(this, MyGridActivity::class.java)
+            startActivity(intent)
+        }
 
+        binding.btnUpload.setOnClickListener {
             val uploadList = list.stream().filter { o -> o.selected }.collect(
                 Collectors.toList()
             ) as ArrayList<FileModel?>
 
-            Log.e("sss", "${uploadList.size}")
+            val progressbar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+            progressbar.progress = 0
+            progressbar.max = uploadList.size
+
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+            linearLayout.removeAllViews()
+            linearLayout.addView(progressbar)
+            dialog.show()
+
             Thread {
                 run {
                     for (i in 0 until uploadList.size) {
-                        Log.e("sss", "----")
-                        val f = uploadList[i] as FileModel
-                        upload(f)
+                        progressbar.incrementProgressBy(1)
+                        val fileModel = uploadList[i] as FileModel
+                        upload(fileModel)
                     }
+                    sendBroadcast(Intent(packageName))
                 }
             }.start()
-
         }
 
 
@@ -109,7 +146,7 @@ class MainActivity : AppCompatActivity() {
         Thread {
             run {
                 for (i in 1..2) {
-                    Thread.sleep(1000 * 5)
+                    Thread.sleep(1000)
                     val intent = Intent(packageName)
                     sendBroadcast(intent)
                     Log.e("aaa", "$i ----")
@@ -181,16 +218,6 @@ class MainActivity : AppCompatActivity() {
             }
         }.start()
 
-        list = getImageList()
-        for (i in 0 until list.size) {
-            val f: String = list[i].path
-            Log.e("aaa", "$f --")
-        }
-
-
-        val thumbnail = thumbnail(list[0].id)
-        binding.imageView.setImageBitmap(thumbnail)
-
         if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
             binding.gridview.numColumns = 4
         } else binding.gridview.numColumns = 6
@@ -216,6 +243,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(broadcast)
+        unregisterReceiver(uploadReceive)
     }
 
     override fun onRequestPermissionsResult(
@@ -270,7 +298,6 @@ class MainActivity : AppCompatActivity() {
             }
             cursor.close()
         }
-        val count = list.size
         return list
     }
 
@@ -300,14 +327,9 @@ class MainActivity : AppCompatActivity() {
                     val imageView: ImageView by lazy { view.findViewById(R.id.img_picker_image) }
                     val textView: TextView by lazy { view.findViewById(R.id.img_picker_filename) }
                     val checkBox: CheckBox by lazy { view.findViewById(R.id.img_picker_checkbox) }
-                    try {
-                        val uri =
-                            Uri.parse(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString() + "/" + model.id)
-                        val thumbnail = contentResolver.loadThumbnail(uri, Size(200, 200), null)
-                        imageView.setImageBitmap(thumbnail)
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
+                    val thumbnail = thumbnail(model.id)
+                    imageView.setImageBitmap(thumbnail)
+
 
                     val file: File = Paths.get(model.path).toFile()
                     textView.text = file.name
@@ -363,9 +385,11 @@ class MainActivity : AppCompatActivity() {
             client.newCall(request).execute().use { response ->
                 Snackbar.make(binding.root, "code: ${response.code()}", Snackbar.LENGTH_SHORT)
                     .show()
+//                sendBroadcast(Intent(packageName))
             }
         } catch (e: IOException) {
-            e.printStackTrace()
+            Snackbar.make(binding.root, e.message.toString(), Snackbar.LENGTH_SHORT)
+                .show()
         }
     }
 
