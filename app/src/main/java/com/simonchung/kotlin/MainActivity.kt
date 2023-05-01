@@ -25,7 +25,6 @@ import com.simonchung.kotlin.broadcast.MyReceiver
 import com.simonchung.kotlin.databinding.ActivityMainBinding
 import com.simonchung.kotlin.model.FileModel
 import com.simonchung.kotlin.sqlite.Photo
-import com.simonchung.kotlin.ui.login.LoginActivity
 import okhttp3.*
 import java.io.File
 import java.io.FileOutputStream
@@ -139,16 +138,16 @@ class MainActivity : AppCompatActivity() {
 
 
         //訊息顯示
-        Toast.makeText(this, "this is toast", Toast.LENGTH_LONG).show()
-        Snackbar.make(binding.root, "顯示 Snackbar", Snackbar.LENGTH_SHORT).show()
+//        Toast.makeText(this, "this is toast", Toast.LENGTH_LONG).show()
+//        Snackbar.make(binding.root, "顯示 Snackbar", Snackbar.LENGTH_SHORT).show()
 
         //執行緒, 不可在Thread內使用Toast會crash, Handler已經deprecate, 可使用廣播與main thread communication
         Thread {
             run {
                 for (i in 1..2) {
                     Thread.sleep(1000)
-                    val intent = Intent(packageName)
-                    sendBroadcast(intent)
+//                    val intent = Intent(packageName)
+//                    sendBroadcast(intent)
                     Log.e("aaa", "$i ----")
                 }
             }
@@ -194,6 +193,7 @@ class MainActivity : AppCompatActivity() {
         val preference = PreferenceManager.getDefaultSharedPreferences(this)
         preference.edit().putString("key", "simonchung").apply()
 
+        //FileOutputStream
         try {
             val outStream: FileOutputStream = this.openFileOutput("11.txt", Context.MODE_PRIVATE)
             val string = "this is output stream test"
@@ -225,6 +225,7 @@ class MainActivity : AppCompatActivity() {
         adapter = getAdapter()
         binding.gridview.adapter = adapter
 
+        //swipe
         binding.swipe.setOnRefreshListener {
             list = getImageList()
             adapter.notifyDataSetChanged()
